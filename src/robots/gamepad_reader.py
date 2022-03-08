@@ -44,7 +44,7 @@ class Gamepad:
       vel_scale_y: maximum absolute y-velocity command.
       vel_scale_rot: maximum absolute yaw-dot command.
     """
-    self.gamepad = inputs.devices.gamepads[0]
+    # self.gamepad = inputs.devices.gamepads[0]
 
     self._vel_scale_x = vel_scale_x
     self._vel_scale_y = vel_scale_y

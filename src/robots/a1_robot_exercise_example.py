@@ -1,7 +1,7 @@
 """Example of running A1 robot with position control.
 
 To run:
-python -m src.robots.a1_robot_exercise_example.py
+python3 -m src.robots.a1_robot_exercise_example.py
 """
 from absl import app
 from absl import flags
@@ -14,7 +14,7 @@ import time
 from typing import Tuple
 
 from src.robots import a1
-from src.robots import a1_robot
+# from src.robots import a1_robot
 from src.robots.motors import MotorCommand
 
 flags.DEFINE_bool('use_real_robot', False, 'whether to use real robot.')
