@@ -26,11 +26,12 @@ class Spirit(Robot):
           "jtoe3",
       ),
       motor_control_mode: MotorControlMode = MotorControlMode.POSITION,
+      stand_positions: Tuple[float] = np.array(
+        0.0, 0.76, 1.52, 0.0, 0.76, 1.52, 0.0, 0.76, 1.52, 0.0, 0.76, 1.52,), 
       mpc_body_height: float = 0.3,
       mpc_body_mass: float = 11.5,
       mpc_body_inertia: Tuple[float] = np.array(
-          # (0.1, 0, 0, 0, 0.2, 0, 0, 0, 0.2)),
-          (0.05, 0, 0, 0, 0.1, 0, 0, 0, 0.1)),
+          (0.05, 0, 0, 0, 0.1, 0, 0, 0, 0.1)), # (0.1, 0, 0, 0, 0.2, 0, 0, 0, 0.2)),
   ) -> None:
     """Constructs an A1 robot and resets it to the initial states.
         Initializes a tuple with a single MotorGroup containing 12 MotoroModels.
@@ -73,7 +74,7 @@ class Spirit(Robot):
             max_velocity=30,
             min_torque=-40,
             max_torque=40,
-            kp=30,
+            kp=30, ############################
             kd=0.1,
         ),
          MotorModel(
@@ -151,7 +152,7 @@ class Spirit(Robot):
             max_velocity=30,
             min_torque=-40,
             max_torque=40,
-            kp=30,
+            kp=30, ############################
             kd=0.1,
         ),
         MotorModel(
@@ -205,6 +206,7 @@ class Spirit(Robot):
         motors=motors,
         base_joint_names=base_joint_names,
         foot_joint_names=foot_joint_names,
+        stand_positions=stand_positions
     )
 
   @property

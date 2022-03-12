@@ -37,6 +37,7 @@ class Robot:
       sim_conf: ml_collections.ConfigDict,
       base_joint_names: Tuple[str, ...],
       foot_joint_names: Tuple[str, ...],
+      stand_positions: Tuple[float]
   ) -> None:
     """Constructs a base robot and resets it to the initial states.
         TODO
@@ -50,15 +51,18 @@ class Robot:
     self._motor_torques = None
     self._urdf_path = urdf_path
     self._load_robot_urdf(self._urdf_path)
+    self._stand_positions = stand_positions
+
     self._step_counter = 0
-    self._foot_contact_history = self.foot_positions_in_base_frame.copy()
-    self._foot_contact_history[:, 2] = -self.mpc_body_height
     self._last_timestamp = 0
     self.reset()
+    # self._foot_contact_history = self.foot_positions_in_base_frame.copy()
+    # self._foot_contact_history[:, 2] = -self.mpc_body_height
 
+  '''
+    URDF setup
+  '''
   def _load_robot_urdf(self, urdf_path: str) -> None:
-    # TODO: how do we want to check for missing attributes when not using
-    # configs? One way to do it:
     if not self._pybullet_client:
       raise AttributeError("No pybullet client specified!")
     p = self._pybullet_client
@@ -92,18 +96,16 @@ class Robot:
       elif joint_name in self._foot_joint_names:
         self._foot_link_ids.append(joint_id)
 
+  '''Robot instantiation
+    In sequence 1. reset, 2. stand up, to prepare robot initialization
+  ''' 
   def reset(self,
-            hard_reset: bool = False,
             num_reset_steps: Optional[int] = None) -> None:
     """Resets the robot."""
-    if hard_reset:
-      # This assumes that resetSimulation() is already called.
-      self._load_robot_urdf(self._urdf_path)
-    else:
-      init_position = (self._sim_conf.init_rack_position
+    init_position = (self._sim_conf.init_rack_position
                        if self._sim_conf.on_rack else
                        self._sim_conf.init_position)
-      self._pybullet_client.resetBasePositionAndOrientation(
+    self._pybullet_client.resetBasePositionAndOrientation(
           self.quadruped, init_position, [0.0, 0.0, 0.0, 1.0])
 
     num_joints = self._pybullet_client.getNumJoints(self.quadruped)
@@ -117,7 +119,6 @@ class Robot:
       )
 
     # Set motors to the initial position
-    # TODO: these should be set already when they are instantiated?
     for i in range(len(self._motor_joint_ids)):
       self._pybullet_client.resetJointState(
           self.quadruped,
@@ -137,11 +138,29 @@ class Robot:
     self._last_timestamp = self.time_since_reset
     self._step_counter = 0
 
+  def stand_up(self, num_standup_steps: Optional[int] = None):
+      motor_command = MotorCommand(
+            desired_position=self._robot.stand_positions,
+            kp=self._robot.motor_group.kps,
+            desired_velocity=0,
+            kd=self._robot.motor_group.kds,
+            desired_extra_torque=0)
+      if num_standup_steps is None:
+        num_standup_steps = int(self._sim_conf.standup_time_s /
+                            self._sim_conf.timestep)
+      for _ in range(num_standup_steps):
+        self.step(motor_command, MotorControlMode.POSITION)
+
+  '''Each step.
+    Uses hybrid controller to calculate the torque needed for each joint and 
+    then applys to pybullet
+  '''
   def _apply_action(self, action, motor_control_mode=None) -> None:
+    # hybrid mode, calcultate torque
     torques, observed_torques = self._motor_group.convert_to_torque(
         action, self.motor_angles, self.motor_velocities, motor_control_mode)
-    # import pdb
-    # pdb.set_trace()
+        
+    # apply torque
     self._pybullet_client.setJointMotorControlArray(
         bodyIndex=self.quadruped,
         jointIndices=self._motor_joint_ids,
@@ -150,44 +169,47 @@ class Robot:
     )
     self._motor_torques = observed_torques
 
-  def _update_contact_history(self):
-    dt = self.time_since_reset - self._last_timestamp
-    self._last_timestamp = self.time_since_reset
-    base_orientation = self.base_orientation_quat
-    rot_mat = self.pybullet_client.getMatrixFromQuaternion(base_orientation)
-    rot_mat = np.array(rot_mat).reshape((3, 3))
-    base_vel_body_frame = rot_mat.T.dot(self.base_velocity)
+  # def _update_contact_history(self):
+  #   dt = self.time_since_reset - self._last_timestamp
+  #   self._last_timestamp = self.time_since_reset
+  #   base_orientation = self.base_orientation_quat
+  #   rot_mat = self.pybullet_client.getMatrixFromQuaternion(base_orientation)
+  #   rot_mat = np.array(rot_mat).reshape((3, 3))
+  #   base_vel_body_frame = rot_mat.T.dot(self.base_velocity)
 
-    foot_contacts = self.foot_contacts.copy()
-    foot_positions = self.foot_positions_in_base_frame.copy()
-    for leg_id in range(4):
-      if foot_contacts[leg_id]:
-        self._foot_contact_history[leg_id] = foot_positions[leg_id]
-      else:
-        self._foot_contact_history[leg_id] -= base_vel_body_frame * dt
+  #   foot_contacts = self.foot_contacts.copy()
+  #   foot_positions = self.foot_positions_in_base_frame.copy()
+  #   for leg_id in range(4):
+  #     if foot_contacts[leg_id]:
+  #       self._foot_contact_history[leg_id] = foot_positions[leg_id]
+  #     else:
+  #       self._foot_contact_history[leg_id] -= base_vel_body_frame * dt
 
   def step(self, action, motor_control_mode=None) -> None:
     self._step_counter += 1
     for _ in range(self._sim_conf.action_repeat):
       self._apply_action(action, motor_control_mode)
       self._pybullet_client.stepSimulation()
-      self._update_contact_history()
+      # self._update_contact_history()
 
-  @property
-  def foot_contacts(self):
-    all_contacts = self._pybullet_client.getContactPoints(bodyA=self.quadruped)
+  '''
+    Others:
+  '''
+  # @property
+  # def foot_contacts(self):
+  #   all_contacts = self._pybullet_client.getContactPoints(bodyA=self.quadruped)
 
-    contacts = [False, False, False, False]
-    for contact in all_contacts:
-      # Ignore self contacts
-      if contact[2] == self.quadruped:
-        continue
-      try:
-        toe_link_index = self._foot_link_ids.index(contact[3])
-        contacts[toe_link_index] = True
-      except ValueError:
-        continue
-    return contacts
+  #   contacts = [False, False, False, False]
+  #   for contact in all_contacts:
+  #     # Ignore self contacts
+  #     if contact[2] == self.quadruped:
+  #       continue
+  #     try:
+  #       toe_link_index = self._foot_link_ids.index(contact[3])
+  #       contacts[toe_link_index] = True
+  #     except ValueError:
+  #       continue
+  #   return contacts
 
   @property
   def base_position(self):
@@ -294,12 +316,12 @@ class Robot:
     return motor_torques_dict
 
   @property
-  def control_timestep(self):
+  def simulation_timestep(self):
     return self._sim_conf.timestep * self._sim_conf.action_repeat
 
   @property
   def time_since_reset(self):
-    return self._step_counter * self.control_timestep
+    return self._step_counter * self.simulation_timestep
 
   @property
   def motor_group(self):
