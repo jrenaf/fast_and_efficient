@@ -201,7 +201,7 @@ class LegController:
     def grf_array(self):
         return self._grf_array
 
-    @grf_array.setters
+    @grf_array.setter
     def grf_array(self, grf_array: lp_python_interface.GRFArray) -> None:
         self._grf_array = grf_array
 

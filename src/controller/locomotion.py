@@ -5,6 +5,7 @@ from datetime import datetime
 import enum
 import ml_collections
 import numpy as np
+import pandas as pd
 import os
 import pickle
 import pybullet
@@ -17,7 +18,6 @@ from src.convex_mpc_controller import com_velocity_estimator
 from src.convex_mpc_controller import offset_gait_generator
 from src.convex_mpc_controller import raibert_swing_leg_controller
 from src.convex_mpc_controller import torque_stance_leg_controller_mpc
-from src.convex_mpc_controller.gait_configs import crawl, trot, flytrot
 from src.robots import a1
 from src.robots import spirit
 from src.robots.motors import MotorCommand
@@ -31,17 +31,17 @@ import gbp_python_interface
 import lp_python_interface
 
 
-class ControllerMode(enum.Enum):
-    DOWN = 1
-    STAND = 2
-    WALK = 3
-    TERMINATE = 4
+# class ControllerMode(enum.Enum):
+#     DOWN = 1
+#     STAND = 2
+#     WALK = 3
+#     TERMINATE = 4
 
 
-class GaitType(enum.Enum):
-    CRAWL = 1
-    TROT = 2
-    FLYTROT = 3
+# class GaitType(enum.Enum):
+#     CRAWL = 1
+#     TROT = 2
+#     FLYTROT = 3
 
 
 def get_sim_conf():
@@ -51,7 +51,7 @@ def get_sim_conf():
     config.reset_time_s: float = 3.
     config.standup_time_s: float = 3.
     config.num_solver_iterations: int = 30
-    config.init_position: Tuple[float, float, float] = (0., 0., 0.32)
+    config.init_position: Tuple[float, float, float] = (0., 0., 1.0)
     config.init_rack_position: Tuple[float, float, float] = [0., 0., 1]
     config.on_rack: bool = False
     return config
@@ -81,8 +81,9 @@ class Locomotion(object):
     """
         self._use_real_robot = use_real_robot
         self._show_gui = show_gui
+        self._sim_conf = get_sim_conf()
         self._setup_robot_and_terrain()
-        self._setup_planner_and_controllers()
+        self._setup_planner_and_controller()
 
         self.reset_robot()
         self.reset_planners()
@@ -110,7 +111,7 @@ class Locomotion(object):
         p.setAdditionalSearchPath('src/data')
         self.pybullet_client = p
         p.setPhysicsEngineParameter(numSolverIterations=30)
-        p.setTimeStep(0.002)
+        p.setTimeStep(self._sim_conf.timestep)
         p.setGravity(0, 0, -9.8)
         p.setPhysicsEngineParameter(enableConeFriction=0)
 
@@ -120,6 +121,7 @@ class Locomotion(object):
         self._ground_id = self._terrain.terrainBody
         self._terrain_map = self._terrain.sensedHeightMapSquare([0.0, 0.0],
                                                                 [100, 100])
+        pd.DataFrame(self._terrain_map).to_csv('terrain.csv')
         self._goal = [3, 3]
 
         # Construct robot class:
@@ -136,7 +138,8 @@ class Locomotion(object):
         self._gait_pattern.phase_offset = [0.0, 0.5, 0.5, 0.0]
         self._gait_pattern.duty_cycle = [0.3, 0.3, 0.3, 0.3]
         self._global_planner = GlobalPlanner(self.pybullet_client, self._robot,
-                                             self._terrain_map, goal_point=self._goal)
+                                             self._terrain_map)
+        self._global_planner.set_goal_point(self._goal)
         self._local_planner = LocalPlanner(self.pybullet_client, self._robot,
                                            self._terrain_map, self._gait_pattern)
         self._leg_controller = LegController(self._robot)
@@ -144,18 +147,19 @@ class Locomotion(object):
     def reset_robot(self):
         self._robot.reset()
         self._robot.stand_up()
+        self._robot.change_controller_param([10, 10, 10], [1, 1, 1])
         if self._show_gui and not self._use_real_robot:
             self.pybullet_client.configureDebugVisualizer(
-                self.pybullet_client.COV_s ENABLE_RENDERING, 1)
+                self.pybullet_client.COV_ENABLE_RENDERING, 1)
 
     def reset_planners(self):
         # Resetting other components
         self._reset_time = self._clock() # 0.0
         self._global_plan_reset_time = self._reset_time
         self._local_plan_reset_time = self._reset_time
-        self._global_planner.reset(self._time_since_reset)
-        self._local_planner.reset(self._time_since_reset)
-        self._leg_controller.reset(self._time_since_reset)
+        self._global_planner.reset(self._reset_time)
+        self._local_planner.reset(self._reset_time)
+        self._leg_controller.reset(self._reset_time)
 
     @property
     def time_since_global_planner_update(self):
@@ -219,11 +223,12 @@ class Locomotion(object):
         logging.info("main thread started...")
         self._global_plan = self._global_planner.update()
         self._global_plan_reset_time = self._clock
+        time.sleep(60)
         while True:
             self.update() # update time
             if self._time_since_local_plan_update == self._node_interval:
                 self._local_plan = self._local_planner.update()
-                self._global_plan_reset_time = self._clock
+                self._local_plan_reset_time = self._clock
         
             action = self.get_action()
             self._robot.step(action)

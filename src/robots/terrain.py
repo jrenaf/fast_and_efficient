@@ -88,7 +88,7 @@ class terrain(object):
                          -1,
                          collisionMargin=0.01,
                          restitution=0,
-                         lateralFriction=0.2,
+                         lateralFriction=0.2, ###
                          contactStiffness=30000,
                          contactDamping=1000,
                          physicsClientId=self.physicsClientId)

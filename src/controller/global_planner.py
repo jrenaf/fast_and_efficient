@@ -1,6 +1,7 @@
 import gbp_python_interface
 import lp_python_interface
 
+import pybullet as p
 import numpy as np
 from typing import Any
 from src.robots.robot import Robot
@@ -13,16 +14,23 @@ class GlobalPlanner(object):
 		robot: Robot,
         terrain_map: np.ndarray, # terrain_map = np.zeros((100, 100), dtype='float64'),
         origin: np.array = np.array((0., 0.), dtype='float64'),
-		robot_state: lp_python_interface.RobotState = None,
-		goal_point: lp_python_interface.Point = None  # = np.array((0, 0))
+		robot_state: Any = None,
+		goal_point: Any = None  # = np.array((0, 0))
 		# terrain_params: dict = {} # we shouldn't actually need this
     ) -> None:
         self._pybullet_client = pybullet_client
         self._robot = robot
         self._terrain_map = terrain_map
         self._origin = origin
-        self._robot_state = robot_state
-        self._goal_point = goal_point
+        if robot_state == None:
+            self._robot_state = lp_python_interface.RobotState()
+        else:
+            self._robot_state = robot_state
+        if goal_point == None:
+            self._goal_point = lp_python_interface.Point()
+        else:
+            self._goal_point = goal_point
+        self._debug_trajectory_array = []
         # self._terrain_params = terrain_params
         self.reset(0)
 
@@ -32,15 +40,7 @@ class GlobalPlanner(object):
 
     @terrain_map.setter
     def terrain_map(self, terrain_map:  np.ndarray) -> None:
-        self._robot_state = terrain_map
-
-    @property
-    def terrain_map(self):
-        return self._terrain_map
-
-    @terrain_map.setter
-    def terrain_map(self, terrain_map:  np.ndarray) -> None:
-        self._robot_state = terrain_map
+        self._terrain_map = terrain_map
 
     @property
     def robot_state(self):
@@ -50,9 +50,8 @@ class GlobalPlanner(object):
     def goal_point(self):
         return self._goal_point
 
-    @goal_point.setter
-    def terrain_map(self, goal_point:  np.array) -> None:
-        self._goal_point.x = goal_point[0]
+    def set_goal_point(self, goal_point:  np.array) -> None:
+        self._goal_point.x  = goal_point[0]
         self._goal_point.y = goal_point[1]
         self._goal_point.z = 0.
 
@@ -76,9 +75,9 @@ class GlobalPlanner(object):
         self._robot_state.body.pose.orientation.z = self._robot.base_orientation_quat[2]
         self._robot_state.body.pose.orientation.w = self._robot.base_orientation_quat[3]
 
-        self._robot_state.body.pose.pose.x = self._robot.base_position[0]
-        self._robot_state.body.pose.pose.y = self._robot.base_position[1]
-        self._robot_state.body.pose.pose.z = self._robot.base_position[2]
+        self._robot_state.body.pose.position.x = self._robot.base_position[0]
+        self._robot_state.body.pose.position.y = self._robot.base_position[1]
+        self._robot_state.body.pose.position.z = self._robot.base_position[2]
 
         self._robot_state.body.twist.linear.x = self._robot.base_velocity[0]
         self._robot_state.body.twist.linear.y = self._robot.base_velocity[1]
@@ -88,10 +87,29 @@ class GlobalPlanner(object):
         self._robot_state.body.twist.angular.y = self._robot.base_rpy_rate[1]
         self._robot_state.body.twist.angular.z = self._robot.base_rpy_rate[2]
 
-    def reset(self, current_time: float) -> None:
-        return
+    def visualize(self) -> None:
+        if self._global_plan.robot_plan.states:
+            for i in range(0, len(self._global_plan.robot_plan.states)-1):
+                debug_id = p.addUserDebugLine(
+                       [self._global_plan.robot_plan.states[i].body.pose.position.x,
+                       self._global_plan.robot_plan.states[i].body.pose.position.y,
+                       self._global_plan.robot_plan.states[i].body.pose.position.z], 
+                       [self._global_plan.robot_plan.states[i].body.pose.position.x,
+                       self._global_plan.robot_plan.states[i+1].body.pose.position.y,
+                       self._global_plan.robot_plan.states[i+1].body.pose.position.z], [1, 0, 0], 3)
+                print([self._global_plan.robot_plan.states[i+1].body.pose.position.x,
+                       self._global_plan.robot_plan.states[i].body.pose.position.y,
+                       self._global_plan.robot_plan.states[i].body.pose.position.z])
+                self._debug_trajectory_array.append(debug_id)
 
-    def update(self, current_time: float) -> lp_python_interface.GlobalPlan():
+    def reset(self, current_time: float) -> None:
+        if not self._debug_trajectory_array:
+            for id in range (len(self._debug_trajectory_array)):
+                p.removeVisualShape(id)
+        self._debug_trajectory_array = []
+
+    def update(self) -> lp_python_interface.GlobalPlan():
         self._retrieve_robot_state()
         self._global_plan = self.get_plan()
+        self.visualize()
         return self._global_plan.robot_plan

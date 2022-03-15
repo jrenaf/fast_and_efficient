@@ -26,8 +26,8 @@ class Spirit(Robot):
           "jtoe3",
       ),
       motor_control_mode: MotorControlMode = MotorControlMode.POSITION,
-      stand_positions: Tuple[float] = np.array(
-        0.0, 0.76, 1.52, 0.0, 0.76, 1.52, 0.0, 0.76, 1.52, 0.0, 0.76, 1.52,), 
+      stand_positions: Tuple[float] = np.array((
+        0.0, 0.76, 1.52, 0.0, 0.76, 1.52, 0.0, 0.76, 1.52, 0.0, 0.76, 1.52)), 
       mpc_body_height: float = 0.3,
       mpc_body_mass: float = 11.5,
       mpc_body_inertia: Tuple[float] = np.array(
@@ -54,7 +54,7 @@ class Spirit(Robot):
         MotorModel(
             name="0",
             motor_control_mode=motor_control_mode,
-            init_position=0.76,
+            init_position=0.0,
             min_position=-6.28318530718,
             max_position=6.28318530718,
             min_velocity=-30,
@@ -67,7 +67,7 @@ class Spirit(Robot):
         MotorModel(
             name="1",
             motor_control_mode=motor_control_mode,
-            init_position=1.52,
+            init_position=0.0,
             min_position=0.0,
             max_position=3.14159265359,
             min_velocity=-30,
@@ -93,7 +93,7 @@ class Spirit(Robot):
         MotorModel(
             name="2",
             motor_control_mode=motor_control_mode,
-            init_position=0.76,
+            init_position=0.0,
             min_position=-6.28318530718,
             max_position=6.28318530718,
             min_velocity=-30,
@@ -106,7 +106,7 @@ class Spirit(Robot):
         MotorModel(
             name="3",
             motor_control_mode=motor_control_mode,
-            init_position=1.52,
+            init_position=0.0,
             min_position=0.0,
             max_position=3.14159265359,
             min_velocity=-30,
@@ -132,7 +132,7 @@ class Spirit(Robot):
         MotorModel(
             name="4",
             motor_control_mode=motor_control_mode,
-            init_position=0.76,
+            init_position=0.0,
             min_position=-6.28318530718,
             max_position=6.28318530718,
             min_velocity=-30,
@@ -145,7 +145,7 @@ class Spirit(Robot):
         MotorModel(
             name="5",
             motor_control_mode=motor_control_mode,
-            init_position=1.52,
+            init_position=0.0,
             min_position=0.0,
             max_position=3.14159265359,
             min_velocity=-30,
@@ -171,7 +171,7 @@ class Spirit(Robot):
         MotorModel(
             name="6",
             motor_control_mode=motor_control_mode,
-            init_position=0.76,
+            init_position=0.0,
             min_position=-6.28318530718,
             max_position=6.28318530718,
             min_velocity=-30,
@@ -184,7 +184,7 @@ class Spirit(Robot):
         MotorModel(
             name="7",
             motor_control_mode=motor_control_mode,
-            init_position=1.52,
+            init_position=0.0,
             min_position=0.0,
             max_position=3.14159265359,
             min_velocity=-30,
