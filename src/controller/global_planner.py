@@ -3,6 +3,7 @@ import lp_python_interface
 
 import pybullet as p
 import numpy as np
+import pandas as pd
 from typing import Any
 from src.robots.robot import Robot
 
@@ -32,6 +33,8 @@ class GlobalPlanner(object):
             self._goal_point = goal_point
         self._debug_trajectory_array = []
         # self._terrain_params = terrain_params
+
+        self._global_planner = gbp_python_interface.GlobalBodyPlanner()
         self.reset(0)
 
     @property
@@ -63,8 +66,7 @@ class GlobalPlanner(object):
     # def terrain_params(self, terrain_params:  dict) -> None:
     #     self._terrain_params = terrain_params
 
-    def get_plan(self) -> lp_python_interface.GlobalPlan():
-        self._global_planner = gbp_python_interface.GlobalBodyPlanner()
+    def _get_plan(self) -> lp_python_interface.GlobalPlan():
         self._global_plan = self._global_planner.getPlan(
 			self._robot_state, self._goal_point, self._terrain_map, self._origin)
         return self._global_plan
@@ -74,7 +76,6 @@ class GlobalPlanner(object):
         self._robot_state.body.pose.orientation.y = self._robot.base_orientation_quat[1]
         self._robot_state.body.pose.orientation.z = self._robot.base_orientation_quat[2]
         self._robot_state.body.pose.orientation.w = self._robot.base_orientation_quat[3]
-
         self._robot_state.body.pose.position.x = self._robot.base_position[0]
         self._robot_state.body.pose.position.y = self._robot.base_position[1]
         self._robot_state.body.pose.position.z = self._robot.base_position[2]
@@ -89,6 +90,7 @@ class GlobalPlanner(object):
 
     def visualize(self) -> None:
         if self._global_plan.robot_plan.states:
+            temp = []
             for i in range(0, len(self._global_plan.robot_plan.states)-1):
                 debug_id = p.addUserDebugLine(
                        [self._global_plan.robot_plan.states[i].body.pose.position.x,
@@ -97,10 +99,11 @@ class GlobalPlanner(object):
                        [self._global_plan.robot_plan.states[i].body.pose.position.x,
                        self._global_plan.robot_plan.states[i+1].body.pose.position.y,
                        self._global_plan.robot_plan.states[i+1].body.pose.position.z], [1, 0, 0], 3)
-                print([self._global_plan.robot_plan.states[i+1].body.pose.position.x,
+                temp.append([self._global_plan.robot_plan.states[i+1].body.pose.position.x,
                        self._global_plan.robot_plan.states[i].body.pose.position.y,
                        self._global_plan.robot_plan.states[i].body.pose.position.z])
                 self._debug_trajectory_array.append(debug_id)
+            pd.DataFrame(temp).to_csv('global_plan.csv')
 
     def reset(self, current_time: float) -> None:
         if not self._debug_trajectory_array:
@@ -110,6 +113,6 @@ class GlobalPlanner(object):
 
     def update(self) -> lp_python_interface.GlobalPlan():
         self._retrieve_robot_state()
-        self._global_plan = self.get_plan()
+        self._global_plan = self._get_plan()
         self.visualize()
-        return self._global_plan.robot_plan
+        return self._global_plan

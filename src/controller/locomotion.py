@@ -47,6 +47,7 @@ import lp_python_interface
 def get_sim_conf():
     config = ml_collections.ConfigDict()
     config.timestep: float = 0.001
+    config.timestep_per_index: int =3
     config.action_repeat: int = 1
     config.reset_time_s: float = 3.
     config.standup_time_s: float = 3.
@@ -54,6 +55,7 @@ def get_sim_conf():
     config.init_position: Tuple[float, float, float] = (0., 0., 1.0)
     config.init_rack_position: Tuple[float, float, float] = [0., 0., 1]
     config.on_rack: bool = False
+    config.debug_flag: bool = True
     return config
 
 
@@ -87,7 +89,7 @@ class Locomotion(object):
 
         self.reset_robot()
         self.reset_planners()
-        self._reset_time = self._clock() # timer: calculate the simulation time
+        # self._reset_time = 0.0 # timer: calculate the simulation time
         self._global_plan_reset_time = self._reset_time
         self._local_plan_reset_time = self._reset_time
         self._logs = []
@@ -131,17 +133,23 @@ class Locomotion(object):
 
         if self._show_gui and not self._use_real_robot:
             p.configureDebugVisualizer(p.COV_ENABLE_RENDERING, 1)
-        self._clock = lambda: self._robot.time_since_reset
+        # self._clock = self._robot.time_since_reset()
+
 
     def _setup_planner_and_controller(self):
         self._gait_pattern = lp_python_interface.GaitPattern()
         self._gait_pattern.phase_offset = [0.0, 0.5, 0.5, 0.0]
         self._gait_pattern.duty_cycle = [0.3, 0.3, 0.3, 0.3]
-        self._global_planner = GlobalPlanner(self.pybullet_client, self._robot,
-                                             self._terrain_map)
+        self._global_planner = GlobalPlanner(pybullet_client=self.pybullet_client, 
+                                             robot=self._robot,
+                                             terrain_map=self._terrain_map)
         self._global_planner.set_goal_point(self._goal)
-        self._local_planner = LocalPlanner(self.pybullet_client, self._robot,
-                                           self._terrain_map, self._gait_pattern)
+        self._local_planner = LocalPlanner(pybullet_client=self.pybullet_client, 
+                                           robot=self._robot,
+                                           sim_conf=get_sim_conf(),
+                                           terrain_map=self._terrain_map,
+                                           origin=[0, 0],
+                                           gait_pattern=self._gait_pattern)
         self._leg_controller = LegController(self._robot)
 
     def reset_robot(self):
@@ -154,7 +162,7 @@ class Locomotion(object):
 
     def reset_planners(self):
         # Resetting other components
-        self._reset_time = self._clock() # 0.0
+        self._reset_time = self._robot.time_since_reset # 0.0
         self._global_plan_reset_time = self._reset_time
         self._local_plan_reset_time = self._reset_time
         self._global_planner.reset(self._reset_time)
@@ -170,9 +178,9 @@ class Locomotion(object):
         return self._time_since_local_plan_update
 
     def update(self):
-        self._time_since_reset = self._clock() - self._reset_time
-        self._time_since_global_plan_update = self._clock() - self._global_plan_reset_time
-        self._time_since_local_plan_update = self._clock() - self._local_plan_reset_time
+        self._time_since_reset = self._robot.time_since_reset - self._reset_time
+        self._time_since_global_plan_update = self._robot.time_since_reset - self._global_plan_reset_time
+        self._time_since_local_plan_update = self._robot.time_since_reset - self._local_plan_reset_time
 
     def get_action(self):
         """Returns the control ouputs (e.g. positions/torques) for all motors."""
@@ -222,13 +230,14 @@ class Locomotion(object):
     def run(self):
         logging.info("main thread started...")
         self._global_plan = self._global_planner.update()
-        self._global_plan_reset_time = self._clock
-        time.sleep(60)
+        self._global_plan_reset_time = self._robot.time_since_reset
+        self._local_planner.set_global_plan(self._global_plan)
+        time.sleep(1000)
         while True:
             self.update() # update time
-            if self._time_since_local_plan_update == self._node_interval:
+            if self._time_since_local_plan_update % self._node_interval == 0:
                 self._local_plan = self._local_planner.update()
-                self._local_plan_reset_time = self._clock
+                self._local_plan_reset_time = self._robot.time_since_reset
         
             action = self.get_action()
             self._robot.step(action)
@@ -247,8 +256,6 @@ class Locomotion(object):
 
     @property
     def is_safe(self):
-        if self.mode != ControllerMode.WALK:
-            return True
         rot_mat = np.array(
             self._robot.pybullet_client.getMatrixFromQuaternion(
                 self._state_estimator.com_orientation_quat_ground_frame)

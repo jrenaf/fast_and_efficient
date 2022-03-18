@@ -175,7 +175,7 @@ class randomRockyTerrain(terrain):
         self.terrainParams = {
             "AverageAreaPerCell": 1,
             "cellPerlinScale": 5,
-            "cellHeightScale": 0.6,
+            "cellHeightScale": 0.8,# 0.6
             "smoothing": 0.7,
             "perlinScale": 2.5,
             "perlinHeightScale": 0.1,

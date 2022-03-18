@@ -334,7 +334,7 @@ class Robot:
         return self._sim_conf.timestep * self._sim_conf.action_repeat
 
     @property
-    def time_since_reset(self):
+    def time_since_reset(self) -> float:
         return self._step_counter * self.simulation_timestep
 
     @property
