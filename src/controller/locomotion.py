@@ -22,7 +22,7 @@ from src.robots import a1
 from src.robots import spirit
 from src.robots.motors import MotorCommand
 from src.robots.motors import MotorControlMode
-from src.robots.terrain import randomRockyTerrain
+from src.robots.terrain import randomRockyTerrain, Sloped
 from src.controller.leg_controller import LegController
 from src.controller.global_planner import GlobalPlanner
 from src.controller.local_planner import LocalPlanner
@@ -118,13 +118,14 @@ class Locomotion(object):
         p.setPhysicsEngineParameter(enableConeFriction=0)
 
         # Construct terrain:
-        self._terrain = randomRockyTerrain()
-        self._terrain.generate()
-        self._ground_id = self._terrain.terrainBody
-        self._terrain_map = self._terrain.sensedHeightMapSquare([0.0, 0.0],
-                                                                [100, 100])
-        pd.DataFrame(self._terrain_map).to_csv('terrain.csv')
         self._goal = [3, 3]
+        self._terrain = randomRockyTerrain()
+        self._terrain.generate(goal=self._goal)
+        self._ground_id = self._terrain.terrainBody
+        self._terrain_map = self._terrain.sensedHeightMapSquare()
+        # pd.DataFrame(self._terrain_map).to_csv('terrain_1.csv')                             
+        self._terrain_map = np.ascontiguousarray(np.rot90(np.transpose(np.rot90(self._terrain_map)),3))
+        # pd.DataFrame(self._terrain_map).to_csv('terrain_2.csv')
 
         # Construct robot class:
         self._robot = spirit.Spirit(pybullet_client=p,
@@ -148,7 +149,7 @@ class Locomotion(object):
                                            robot=self._robot,
                                            sim_conf=get_sim_conf(),
                                            terrain_map=self._terrain_map,
-                                           origin=[0, 0],
+                                           origin=[0., 0.],
                                            gait_pattern=self._gait_pattern)
         self._leg_controller = LegController(self._robot)
 
@@ -229,6 +230,7 @@ class Locomotion(object):
 
     def run(self):
         logging.info("main thread started...")
+        time.sleep(0.1)
         self._global_plan = self._global_planner.update()
         self._global_plan_reset_time = self._robot.time_since_reset
         self._local_planner.set_global_plan(self._global_plan)

@@ -117,20 +117,22 @@ class terrain(object):
         rMapX, rMapY = np.meshgrid(rMapX, rMapY)
         return griddata(points, vecZ, (rMapX, rMapY)) - sensorPose[0][2]
 
-    def sensedHeightMapSquare(self, sensorPose, mapDim):
-        condX = (self.gridX >=
-                 (sensorPose[0] - self.meshScale[0] * mapDim[0] / 2)) & (
-                     self.gridX <=
-                     (sensorPose[0] + self.meshScale[0] * mapDim[0] / 2))
-        condY = (self.gridY >=
-                 (sensorPose[1] - self.meshScale[1] * mapDim[1] / 2)) & (
-                     self.gridY <=
-                     (sensorPose[1] + self.meshScale[1] * mapDim[1] / 2))
-        cond = condX & condY
-        i, j = np.where(cond == True)
-        return np.extract(cond, self.gridZ).reshape(
-            max(i) - min(i) + 1,
-            max(j) - min(j) + 1)
+    def sensedHeightMapSquare(self):
+        # condX = (self.gridX >=
+        #          (sensorPose[0] - self.meshScale[0] * mapDim[0] / 2)) & (
+        #              self.gridX <=
+        #              (sensorPose[0] + self.meshScale[0] * mapDim[0] / 2))
+        # condY = (self.gridY >=
+        #          (sensorPose[1] - self.meshScale[1] * mapDim[1] / 2)) & (
+        #              self.gridY <=
+        #              (sensorPose[1] + self.meshScale[1] * mapDim[1] / 2))
+        # cond = condX & condY
+        # i, j = np.where(cond == True)
+        # return np.extract(cond, self.gridZ).reshape(
+        #     max(i) - min(i) + 1,
+        #     max(j) - min(j) + 1)
+        print(self.gridZ.shape)
+        return self.gridZ
 
     # find maximum terrain height within a circle around a position
     def maxLocalHeight(self, position, radius):
@@ -163,6 +165,17 @@ class randomSloped(terrain):
         self.gridZ = self.gridX * slope
         self.updateTerrain()
 
+class Sloped(terrain):
+    """
+    This class generates flat terrain with random slope
+    """
+
+    def __init__(self, terrainMapParamsIn={}, physicsClientId=0):
+        super().__init__(terrainMapParamsIn, physicsClientId)
+      
+    def generate(self, terrainParamsIn={}, goal=None):
+        self.gridZ = self.gridY * 0.01 + self.gridX * 0.01
+        self.updateTerrain()
 
 class randomRockyTerrain(terrain):
     """
@@ -174,14 +187,34 @@ class randomRockyTerrain(terrain):
         super().__init__(terrainMapParamsIn, physicsClientId)
         self.terrainParams = {
             "AverageAreaPerCell": 1,
-            "cellPerlinScale": 5,
-            "cellHeightScale": 0.8,# 0.6
+            "cellPerlinScale": 15, # 20
+            "cellHeightScale": 0.4, # 0.6
             "smoothing": 0.7,
-            "perlinScale": 2.5,
-            "perlinHeightScale": 0.1,
-            "flatRadius": 1,
-            "blendRadius": 0.5
+            "perlinScale": 2.5, # 2.5
+            "perlinHeightScale": 0.1, # 0.1
+            "flatRadius": 0.6,
+            "blendRadius": 0.3
         }
+        # self.terrainParams = {
+        #     "AverageAreaPerCell": 1,
+        #     "cellPerlinScale": 25, # 20
+        #     "cellHeightScale": 0.3, # 0.6
+        #     "smoothing": 0.7,
+        #     "perlinScale": 2.5, # 2.5
+        #     "perlinHeightScale": 0.05, # 0.1
+        #     "flatRadius": 0.6,
+        #     "blendRadius": 0.5
+        # }
+        # self.terrainParams = {
+        #     "AverageAreaPerCell": 1,
+        #     "cellPerlinScale": 5,
+        #     "cellHeightScale": 0.25,# 0.6
+        #     "smoothing": 0.7,
+        #     "perlinScale": 2.5, #2.5
+        #     "perlinHeightScale": 0.05, #0.1
+        #     "flatRadius": 0.6,
+        #     "blendRadius": 0.5
+        # } # Rather Flat
 
     # generate new terrain. (Delete old terrain if exists)
     def generate(self, terrainParamsIn={}, copyBlockHeight=None, goal=None):
